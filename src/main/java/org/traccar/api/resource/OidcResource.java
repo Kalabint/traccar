@@ -104,6 +104,12 @@ public class OidcResource extends BaseResource {
         
         if (!validRedirect) {
             logger.warn("OIDC redirect validation FAILED - no match for: {}", redirectUri);
+            
+            // Log security violation to database
+            if (request != null) {
+                actionLogger.failedLogin(request);
+            }
+            
             throw new WebApplicationException(Response.Status.BAD_REQUEST);
         }
 
