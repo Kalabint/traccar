@@ -82,8 +82,21 @@ public class OidcResource extends BaseResource {
         }
 
         // Validate redirect_uri against registered URIs to prevent open redirects
-        String registeredRedirectUri = config.getString(Keys.OPENID_REDIRECT_URI);
-        if (redirectUri == null || registeredRedirectUri == null || !redirectUri.equals(registeredRedirectUri)) {
+        String registeredRedirectUris = config.getString("openid.redirectUri");
+        if (redirectUri == null || registeredRedirectUris == null) {
+            throw new WebApplicationException(Response.Status.BAD_REQUEST);
+        }
+        
+        // Check if redirect_uri matches any registered URI
+        boolean validRedirect = false;
+        for (String registeredUri : registeredRedirectUris.split(",")) {
+            if (redirectUri.trim().equals(registeredUri.trim())) {
+                validRedirect = true;
+                break;
+            }
+        }
+        
+        if (!validRedirect) {
             throw new WebApplicationException(Response.Status.BAD_REQUEST);
         }
 
