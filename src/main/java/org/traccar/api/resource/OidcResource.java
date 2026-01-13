@@ -83,7 +83,12 @@ public class OidcResource extends BaseResource {
 
         // Validate redirect_uri against registered URIs to prevent open redirects
         String registeredRedirectUris = config.getString("openid.redirectUri");
+        
+        org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(OidcResource.class);
+        logger.warn("OIDC redirect validation - redirectUri: {}, registered: {}", redirectUri, registeredRedirectUris);
+        
         if (redirectUri == null || registeredRedirectUris == null) {
+            logger.warn("OIDC redirect validation FAILED - null values");
             throw new WebApplicationException(Response.Status.BAD_REQUEST);
         }
         
@@ -92,11 +97,13 @@ public class OidcResource extends BaseResource {
         for (String registeredUri : registeredRedirectUris.split(",")) {
             if (redirectUri.trim().equals(registeredUri.trim())) {
                 validRedirect = true;
+                logger.info("OIDC redirect validation PASSED - matched: {}", registeredUri.trim());
                 break;
             }
         }
         
         if (!validRedirect) {
+            logger.warn("OIDC redirect validation FAILED - no match for: {}", redirectUri);
             throw new WebApplicationException(Response.Status.BAD_REQUEST);
         }
 
