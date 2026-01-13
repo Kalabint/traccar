@@ -23,6 +23,7 @@ import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.model.User;
 import org.traccar.storage.StorageException;
+import org.traccar.web.OidcSecurityValidator;
 import com.nimbusds.jose.JOSEException;
 
 import jakarta.annotation.security.PermitAll;
@@ -78,6 +79,11 @@ public class OidcResource extends BaseResource {
 
         if (!getClients().containsKey(clientId)) {
             throw new WebApplicationException(Response.Status.UNAUTHORIZED);
+        }
+
+        // Validate redirect_uri to prevent open redirects
+        if (redirectUri != null && !OidcSecurityValidator.isValidRelativeReturnUrl(redirectUri)) {
+            throw new WebApplicationException(Response.Status.BAD_REQUEST);
         }
 
         // Check if user is authenticated (getUserId returns 0 for unauthenticated users)
