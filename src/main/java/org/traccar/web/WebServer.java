@@ -86,6 +86,7 @@ public class WebServer implements LifecycleObject {
 
         ServletContextHandler servletHandler = new ServletContextHandler(ServletContextHandler.SESSIONS);
         JettyWebSocketServletContainerInitializer.configure(servletHandler, null);
+        servletHandler.addFilter(OidcReturnFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
         servletHandler.addFilter(GuiceFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         initApi(servletHandler);

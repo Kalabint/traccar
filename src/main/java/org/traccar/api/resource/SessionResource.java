@@ -50,6 +50,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.IOException;
+import java.net.URI;
 import java.security.GeneralSecurityException;
 import java.util.Date;
 
@@ -111,10 +112,11 @@ public class SessionResource extends BaseResource {
 
     @PermitAll
     @POST
-    public User add(
+    public Response add(
             @FormParam("email") String email,
             @FormParam("password") String password,
-            @FormParam("code") Integer code) throws StorageException {
+            @FormParam("code") Integer code,
+            @QueryParam("return") String returnUrl) throws StorageException {
         LoginResult loginResult;
         try {
             loginResult = loginService.login(email, password, code);
@@ -128,7 +130,23 @@ public class SessionResource extends BaseResource {
         if (loginResult != null) {
             User user = loginResult.getUser();
             SessionHelper.userLogin(actionLogger, request, user, null);
-            return user;
+            
+            // Check for OIDC return URL in session
+            if (returnUrl == null || returnUrl.isEmpty()) {
+                HttpSession session = request.getSession(false);
+                if (session != null) {
+                    returnUrl = (String) session.getAttribute("oidc.return.url");
+                    if (returnUrl != null) {
+                        session.removeAttribute("oidc.return.url");
+                    }
+                }
+            }
+            
+            if (returnUrl != null && !returnUrl.isEmpty()) {
+                return Response.seeOther(URI.create(returnUrl)).build();
+            }
+            
+            return Response.ok(user).build();
         } else {
             actionLogger.failedLogin(request);
             throw new WebApplicationException(Response.status(Response.Status.UNAUTHORIZED).build());

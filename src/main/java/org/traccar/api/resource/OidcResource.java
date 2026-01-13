@@ -80,9 +80,41 @@ public class OidcResource extends BaseResource {
             throw new WebApplicationException(Response.Status.UNAUTHORIZED);
         }
 
+        // Check if user is authenticated (getUserId returns 0 for unauthenticated users)
+        long userId = getUserId();
+        
+        if (userId == 0) {
+            // User not authenticated - redirect to login page with return URL
+            UriBuilder returnUrlBuilder = UriBuilder.fromPath("/api/oidc/authorize")
+                    .queryParam("client_id", clientId)
+                    .queryParam("redirect_uri", redirectUri)
+                    .queryParam("response_type", responseType);
+            
+            if (scope != null) {
+                returnUrlBuilder.queryParam("scope", scope);
+            }
+            if (state != null) {
+                returnUrlBuilder.queryParam("state", state);
+            }
+            if (codeChallenge != null) {
+                returnUrlBuilder.queryParam("code_challenge", codeChallenge);
+            }
+            if (codeChallengeMethod != null) {
+                returnUrlBuilder.queryParam("code_challenge_method", codeChallengeMethod);
+            }
+            if (nonce != null) {
+                returnUrlBuilder.queryParam("nonce", nonce);
+            }
+            
+            String returnUrl = returnUrlBuilder.build().toString();
+            URI loginUrl = UriBuilder.fromPath("/").queryParam("return", returnUrl).build();
+            
+            return Response.seeOther(loginUrl).build();
+        }
+
         URI target = URI.create(redirectUri);
         String code = sessionManager.issueCode(
-                getUserId(), clientId, target, scope, nonce, codeChallenge, codeChallengeMethod);
+                userId, clientId, target, scope, nonce, codeChallenge, codeChallengeMethod);
 
         UriBuilder redirectBuilder = UriBuilder.fromUri(target).queryParam("code", code);
         if (state != null) {
