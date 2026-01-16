@@ -21,6 +21,7 @@ import org.traccar.api.security.OidcSessionManager.AuthorizationCode;
 import org.traccar.api.signature.TokenManager;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
+import org.traccar.helper.LogAction;
 import org.traccar.model.User;
 import org.traccar.storage.StorageException;
 import org.traccar.web.OidcSecurityValidator;
@@ -28,6 +29,8 @@ import com.nimbusds.jose.JOSEException;
 
 import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
@@ -63,6 +66,12 @@ public class OidcResource extends BaseResource {
 
     @Inject
     private OidcSessionManager sessionManager;
+
+    @Inject
+    private LogAction actionLogger;
+
+    @Context
+    private HttpServletRequest request;
 
     @PermitAll
     @GET
