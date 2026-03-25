@@ -9,8 +9,10 @@ import org.traccar.model.Position;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
 import java.util.TimeZone;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -159,7 +161,7 @@ public class NewMotionProcessorTest extends BaseTest {
         long stopGap = 3600000;
 
         double latitude = 0.0;
-        double delta100 = DistanceCalculator.getLongitudeDelta(100, latitude);
+        double delta13000 = DistanceCalculator.getLongitudeDelta(13000, latitude);
 
         Deque<Position> positions = new ArrayDeque<>();
         positions.add(position("2017-01-01 00:00:00", latitude, 0.0));
@@ -169,7 +171,8 @@ public class NewMotionProcessorTest extends BaseTest {
         state.setMotionStreak(true);
         state.setEventPosition(positions.peekFirst());
 
-        Position current = position("2017-01-01 02:00:00", latitude, delta100);
+        Position current = position("2017-01-01 02:00:00", latitude, delta13000);
+        current.set(Position.KEY_DISTANCE, 13000);
         NewMotionProcessor.updateState(state, current, minDistance, minDuration, stopGap);
 
         assertEquals(3, state.getEvents().size());
@@ -186,7 +189,7 @@ public class NewMotionProcessorTest extends BaseTest {
         long stopGap = 3600000;
 
         double latitude = 0.0;
-        double delta100 = DistanceCalculator.getLongitudeDelta(100, latitude);
+        double delta13000 = DistanceCalculator.getLongitudeDelta(13000, latitude);
 
         Deque<Position> positions = new ArrayDeque<>();
         positions.add(position("2017-01-01 00:00:00", latitude, 0.0));
@@ -196,13 +199,121 @@ public class NewMotionProcessorTest extends BaseTest {
         state.setMotionStreak(false);
         state.setEventPosition(positions.peekFirst());
 
-        Position current = position("2017-01-01 02:00:00", latitude, delta100);
+        Position current = position("2017-01-01 02:00:00", latitude, delta13000);
+        current.set(Position.KEY_DISTANCE, 13000);
         NewMotionProcessor.updateState(state, current, minDistance, minDuration, stopGap);
 
         assertEquals(2, state.getEvents().size());
         assertEquals(Event.TYPE_DEVICE_MOVING, state.getEvents().get(0).getType());
         assertEquals(Event.TYPE_DEVICE_STOPPED, state.getEvents().get(1).getType());
         assertFalse(state.getMotionStreak());
+    }
+
+    @Test
+    public void testGapBelowDistanceDoesNotSplitTrip() throws ParseException {
+        double minDistance = 500;
+        long minDuration = 300000;
+        long stopGap = 3600000;
+
+        double latitude = 0.0;
+        double delta100 = DistanceCalculator.getLongitudeDelta(100, latitude);
+
+        Deque<Position> positions = new ArrayDeque<>();
+        positions.add(position("2017-01-01 00:00:00", latitude, 0.0));
+
+        NewMotionState state = new NewMotionState();
+        state.setPositions(positions);
+        state.setMotionStreak(true);
+        state.setEventPosition(positions.peekFirst());
+
+        Position current = position("2017-01-01 02:00:00", latitude, delta100);
+        current.set(Position.KEY_DISTANCE, 100);
+        NewMotionProcessor.updateState(state, current, minDistance, minDuration, stopGap);
+
+        assertEquals(1, state.getEvents().size());
+        assertEquals(Event.TYPE_DEVICE_STOPPED, state.getEvents().get(0).getType());
+        assertFalse(state.getMotionStreak());
+    }
+
+    @Test
+    public void testTripStartBacktrack() throws ParseException {
+        double minDistance = 500;
+        long minDuration = 300000;
+
+        double latitude = 0.0;
+
+        Position stop = position("2017-01-01 00:00:00", latitude, 0.0);
+        Deque<Position> positions = new ArrayDeque<>();
+        positions.add(stop);
+        positions.add(position("2017-01-01 00:01:00", latitude, 0.0));
+        Position departure = position("2017-01-01 00:02:00", latitude, 0.0);
+        positions.add(departure);
+        positions.add(position("2017-01-01 00:03:00", latitude,
+                DistanceCalculator.getLongitudeDelta(120, latitude)));
+        positions.add(position("2017-01-01 00:04:00", latitude,
+                DistanceCalculator.getLongitudeDelta(300, latitude)));
+
+        NewMotionState state = new NewMotionState();
+        state.setPositions(positions);
+        state.setEventPosition(stop);
+
+        Position current = position("2017-01-01 00:05:00", latitude,
+                DistanceCalculator.getLongitudeDelta(600, latitude));
+        NewMotionProcessor.updateState(state, current, minDistance, minDuration, Long.MAX_VALUE);
+
+        assertTrue(state.getMotionStreak());
+        assertEquals(1, state.getEvents().size());
+        assertEquals(Event.TYPE_DEVICE_MOVING, state.getEvents().get(0).getType());
+        assertEquals(departure.getFixTime(), state.getEvents().get(0).getEventTime());
+    }
+
+    @Test
+    public void testEventsAreChronological() throws ParseException {
+        double minDistance = 200;
+        long minDuration = 180000;
+        long stopGap = 3600000;
+
+        double latitude = 0.0;
+        List<Position> input = List.of(
+                position("2017-01-01 00:00:00", latitude, DistanceCalculator.getLongitudeDelta(0, latitude)),
+                position("2017-01-01 00:01:00", latitude, DistanceCalculator.getLongitudeDelta(0, latitude)),
+                position("2017-01-01 00:02:00", latitude, DistanceCalculator.getLongitudeDelta(0, latitude)),
+                position("2017-01-01 00:03:00", latitude, DistanceCalculator.getLongitudeDelta(100, latitude)),
+                position("2017-01-01 00:04:00", latitude, DistanceCalculator.getLongitudeDelta(220, latitude)),
+                position("2017-01-01 00:05:00", latitude, DistanceCalculator.getLongitudeDelta(0, latitude)),
+                position("2017-01-01 00:06:00", latitude, DistanceCalculator.getLongitudeDelta(60, latitude)),
+                position("2017-01-01 00:07:00", latitude, DistanceCalculator.getLongitudeDelta(320, latitude)));
+
+        Deque<Position> positions = new ArrayDeque<>();
+        NewMotionState state = new NewMotionState();
+        state.setPositions(positions);
+        state.setMotionStreak(false);
+        state.setEventPosition(input.get(0));
+
+        List<Event> events = new ArrayList<>();
+        for (Position current : input) {
+            NewMotionProcessor.updateState(state, current, minDistance, minDuration, stopGap);
+            events.addAll(state.getEvents());
+
+            positions.add(current);
+            while (positions.size() > 1) {
+                var iterator = positions.iterator();
+                iterator.next();
+                if (positions.peekLast().getFixTime().getTime() - iterator.next().getFixTime().getTime() >= minDuration) {
+                    positions.poll();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        assertEquals(3, events.size());
+        assertEquals(Event.TYPE_DEVICE_MOVING, events.get(0).getType());
+        assertEquals(input.get(2).getFixTime(), events.get(0).getEventTime());
+        assertEquals(Event.TYPE_DEVICE_STOPPED, events.get(1).getType());
+        assertEquals(input.get(6).getFixTime(), events.get(1).getEventTime());
+        assertEquals(Event.TYPE_DEVICE_MOVING, events.get(2).getType());
+        assertEquals(input.get(7).getFixTime(), events.get(2).getEventTime());
     }
 
 }
