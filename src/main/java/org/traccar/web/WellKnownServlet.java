@@ -26,6 +26,7 @@ import org.traccar.config.Config;
 import org.traccar.helper.WebHelper;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,11 +46,16 @@ public class WellKnownServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String path = req.getPathInfo();
+        // RFC 8414 §3: for an issuer with a path component (e.g. /api/oidc), the
+        // metadata URL is /.well-known/oauth-authorization-server{issuer-path}.
+        // Accept both the plain path and the issuer-path-suffixed variant.
+        String issuerPath = URI.create(issuer()).getPath();
         Map<String, Object> payload = switch (path) {
             case "/openid-configuration" -> openIdConfiguration();
             case "/oauth-authorization-server" -> authorizationServerConfiguration();
             case "/oauth-protected-resource" -> protectedResourceConfiguration();
-            default -> null;
+            default -> ("/oauth-authorization-server" + issuerPath).equals(path)
+                    ? authorizationServerConfiguration() : null;
         };
         if (payload != null) {
             resp.setContentType("application/json");
