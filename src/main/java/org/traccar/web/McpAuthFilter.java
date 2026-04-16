@@ -43,19 +43,6 @@ public class McpAuthFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
 
-        // Inject CORS headers on every response so browser clients (e.g. Claude Web
-        // Connector at claude.ai) can read the result.
-        httpResponse.setHeader("Access-Control-Allow-Origin", "https://claude.ai");
-        httpResponse.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        httpResponse.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-        httpResponse.setHeader("Access-Control-Allow-Credentials", "true");
-
-        // Preflight — OPTIONS carries no auth; respond 200 immediately.
-        if ("OPTIONS".equalsIgnoreCase(httpRequest.getMethod())) {
-            httpResponse.setStatus(HttpServletResponse.SC_OK);
-            return;
-        }
-
         String authorization = httpRequest.getHeader("Authorization");
         if (authorization == null || authorization.isBlank()) {
             unauthorized(httpResponse, "Missing Authorization header");
