@@ -42,13 +42,16 @@ public class WellKnownServlet extends HttpServlet {
     public WellKnownServlet(Config config, ObjectMapper objectMapper) {
         this.config = config;
         this.objectMapper = objectMapper;
-        String path;
-        try {
-            path = URI.create(issuer()).getPath();
-        } catch (IllegalArgumentException e) {
-            path = "";
+        String path = "";
+        String issuerUrl = issuer();
+        if (issuerUrl != null && !issuerUrl.isBlank()) {
+            try {
+                path = URI.create(issuerUrl).getPath();
+            } catch (IllegalArgumentException e) {
+                // malformed issuer config — fall back to empty path
+            }
         }
-        this.issuerPath = path;
+        this.issuerPath = path != null ? path : "";
     }
 
     @Override
