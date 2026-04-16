@@ -36,11 +36,19 @@ public class WellKnownServlet extends HttpServlet {
 
     private final Config config;
     private final ObjectMapper objectMapper;
+    private final String issuerPath;
 
     @Inject
     public WellKnownServlet(Config config, ObjectMapper objectMapper) {
         this.config = config;
         this.objectMapper = objectMapper;
+        String path;
+        try {
+            path = URI.create(issuer()).getPath();
+        } catch (IllegalArgumentException e) {
+            path = "";
+        }
+        this.issuerPath = path;
     }
 
     @Override
@@ -49,7 +57,6 @@ public class WellKnownServlet extends HttpServlet {
         // RFC 8414 §3: for an issuer with a path component (e.g. /api/oidc), the
         // metadata URL is /.well-known/oauth-authorization-server{issuer-path}.
         // Accept both the plain path and the issuer-path-suffixed variant.
-        String issuerPath = URI.create(issuer()).getPath();
         Map<String, Object> payload = switch (path) {
             case "/openid-configuration" -> openIdConfiguration();
             case "/oauth-authorization-server" -> authorizationServerConfiguration();
