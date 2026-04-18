@@ -27,6 +27,7 @@ import org.eclipse.jetty.ee10.servlet.ResourceServlet;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.ee10.servlet.SessionHandler;
+import org.eclipse.jetty.ee10.servlets.CrossOriginFilter;
 import org.eclipse.jetty.ee10.websocket.server.config.JettyWebSocketServletContainerInitializer;
 import org.eclipse.jetty.http.HttpCookie;
 import org.eclipse.jetty.server.Handler;
@@ -43,7 +44,6 @@ import org.glassfish.jersey.servlet.ServletContainer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traccar.LifecycleObject;
-import org.traccar.api.CorsResponseFilter;
 import org.traccar.api.DateParameterConverterProvider;
 import org.traccar.api.ResourceErrorHandler;
 import org.traccar.api.StreamWriter;
@@ -86,6 +86,19 @@ public class WebServer implements LifecycleObject {
 
         ServletContextHandler servletHandler = new ServletContextHandler(ServletContextHandler.SESSIONS);
         JettyWebSocketServletContainerInitializer.configure(servletHandler, null);
+
+        String webOrigin = config.getString(Keys.WEB_ORIGIN);
+        if (webOrigin != null && !webOrigin.isEmpty()) {
+            FilterHolder corsHolder = new FilterHolder(CrossOriginFilter.class);
+            corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_ORIGINS_PARAM, webOrigin);
+            corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_METHODS_PARAM, "GET,POST,PUT,DELETE,OPTIONS");
+            corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_HEADERS_PARAM,
+                    "Authorization,Content-Type,Accept,Origin");
+            corsHolder.setInitParameter(CrossOriginFilter.ALLOW_CREDENTIALS_PARAM, "true");
+            corsHolder.setInitParameter(CrossOriginFilter.CHAIN_PREFLIGHT_PARAM, "false");
+            servletHandler.addFilter(corsHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
+        }
+
         servletHandler.addFilter(GuiceFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
         initApi(servletHandler);
@@ -190,7 +203,6 @@ public class WebServer implements LifecycleObject {
                 ObjectMapperContextResolver.class,
                 DateParameterConverterProvider.class,
                 SecurityRequestFilter.class,
-                CorsResponseFilter.class,
                 ResourceErrorHandler.class,
                 StreamWriter.class);
         resourceConfig.packages(ServerResource.class.getPackage().getName());
