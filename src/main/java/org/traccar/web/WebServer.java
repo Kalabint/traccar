@@ -88,16 +88,15 @@ public class WebServer implements LifecycleObject {
         JettyWebSocketServletContainerInitializer.configure(servletHandler, null);
 
         String webOrigin = config.getString(Keys.WEB_ORIGIN);
-        if (webOrigin != null && !webOrigin.isEmpty()) {
-            FilterHolder corsHolder = new FilterHolder(CrossOriginFilter.class);
-            corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_ORIGINS_PARAM, webOrigin);
-            corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_METHODS_PARAM, "GET,POST,PUT,DELETE,OPTIONS");
-            corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_HEADERS_PARAM,
-                    "Authorization,Content-Type,Accept,Origin");
-            corsHolder.setInitParameter(CrossOriginFilter.ALLOW_CREDENTIALS_PARAM, "true");
-            corsHolder.setInitParameter(CrossOriginFilter.CHAIN_PREFLIGHT_PARAM, "false");
-            servletHandler.addFilter(corsHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
-        }
+        FilterHolder corsHolder = new FilterHolder(CrossOriginFilter.class);
+        corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_ORIGINS_PARAM,
+                webOrigin != null && !webOrigin.isEmpty() ? webOrigin : "*");
+        corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_METHODS_PARAM, "GET,POST,PUT,DELETE,OPTIONS");
+        corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_HEADERS_PARAM,
+                "Authorization,Content-Type,Accept,Origin");
+        corsHolder.setInitParameter(CrossOriginFilter.ALLOW_CREDENTIALS_PARAM, "true");
+        corsHolder.setInitParameter(CrossOriginFilter.CHAIN_PREFLIGHT_PARAM, "false");
+        servletHandler.addFilter(corsHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
 
         servletHandler.addFilter(GuiceFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
