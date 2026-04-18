@@ -20,7 +20,6 @@ import com.google.inject.servlet.GuiceFilter;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.SessionCookieConfig;
 import jakarta.servlet.http.HttpServletRequest;
-import org.eclipse.jetty.ee10.servlets.CrossOriginFilter;
 import org.eclipse.jetty.compression.server.CompressionHandler;
 import org.eclipse.jetty.ee10.proxy.AsyncProxyServlet;
 import org.eclipse.jetty.ee10.servlet.FilterHolder;
@@ -179,18 +178,6 @@ public class WebServer implements LifecycleObject {
             servletHandler.addServlet(mcpServletHolder, McpServerHolder.PATH);
 
             String mcpPath = McpServerHolder.PATH + "/*";
-            String webOrigin = config.getString(Keys.WEB_ORIGIN);
-
-            if (webOrigin != null && !webOrigin.isEmpty()) {
-                FilterHolder corsHolder = new FilterHolder(CrossOriginFilter.class);
-                corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_ORIGINS_PARAM, webOrigin);
-                corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_METHODS_PARAM, "GET,POST,DELETE,OPTIONS");
-                corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_HEADERS_PARAM,
-                        "Authorization,Content-Type,Accept");
-                corsHolder.setInitParameter(CrossOriginFilter.CHAIN_PREFLIGHT_PARAM, "false");
-                servletHandler.addFilter(corsHolder, mcpPath, EnumSet.of(DispatcherType.REQUEST));
-            }
-
             servletHandler.addFilter(
                     new FilterHolder(new McpAuthFilter(injector.getInstance(LoginService.class))),
                     mcpPath, EnumSet.of(DispatcherType.REQUEST));
