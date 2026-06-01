@@ -62,6 +62,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.EnumSet;
+import java.util.Locale;
 
 public class WebServer implements LifecycleObject {
 
@@ -88,16 +89,15 @@ public class WebServer implements LifecycleObject {
         JettyWebSocketServletContainerInitializer.configure(servletHandler, null);
 
         String webOrigin = config.getString(Keys.WEB_ORIGIN);
-        if (webOrigin != null && !webOrigin.isEmpty()) {
-            FilterHolder corsHolder = new FilterHolder(CrossOriginFilter.class);
-            corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_ORIGINS_PARAM, webOrigin);
-            corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_METHODS_PARAM, "GET,POST,PUT,DELETE,OPTIONS");
-            corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_HEADERS_PARAM,
-                    "Authorization,Content-Type,Accept,Origin");
-            corsHolder.setInitParameter(CrossOriginFilter.ALLOW_CREDENTIALS_PARAM, "true");
-            corsHolder.setInitParameter(CrossOriginFilter.CHAIN_PREFLIGHT_PARAM, "false");
-            servletHandler.addFilter(corsHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
-        }
+        FilterHolder corsHolder = new FilterHolder(CrossOriginFilter.class);
+        corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_ORIGINS_PARAM,
+                webOrigin != null && !webOrigin.isEmpty() ? webOrigin : "*");
+        corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_METHODS_PARAM, "GET,POST,PUT,DELETE,OPTIONS");
+        corsHolder.setInitParameter(CrossOriginFilter.ALLOWED_HEADERS_PARAM,
+                "Authorization,Content-Type,Accept,Origin");
+        corsHolder.setInitParameter(CrossOriginFilter.ALLOW_CREDENTIALS_PARAM, "true");
+        corsHolder.setInitParameter(CrossOriginFilter.CHAIN_PREFLIGHT_PARAM, "false");
+        servletHandler.addFilter(corsHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
 
         servletHandler.addFilter(GuiceFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
@@ -167,11 +167,7 @@ public class WebServer implements LifecycleObject {
         filterHolder.setInitParameter("overridePath", overrideReal.toString());
         servletHandler.addFilter(filterHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
 
-        if (config.getBoolean(Keys.WEB_DEBUG)) {
-            servletHandler.setWelcomeFiles(new String[] {"debug.html", "index.html"});
-        } else {
-            servletHandler.setWelcomeFiles(new String[] {"release.html", "index.html"});
-        }
+        servletHandler.setWelcomeFiles(new String[] {"index.html"});
     }
 
     private void initApi(ServletContextHandler servletHandler) {
@@ -235,7 +231,7 @@ public class WebServer implements LifecycleObject {
 
         String sameSiteCookie = config.getString(Keys.WEB_SAME_SITE_COOKIE);
         if (sameSiteCookie != null) {
-            switch (sameSiteCookie.toLowerCase()) {
+            switch (sameSiteCookie.toLowerCase(Locale.ROOT)) {
                 case "lax":
                     sessionHandler.setSameSite(HttpCookie.SameSite.LAX);
                     break;

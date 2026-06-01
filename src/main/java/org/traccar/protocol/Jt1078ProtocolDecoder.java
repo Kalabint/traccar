@@ -19,11 +19,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.Protocol;
 import org.traccar.database.DeviceLookupService;
 import org.traccar.helper.BitUtil;
 import org.traccar.media.VideoStreamManager;
+import org.traccar.model.Device;
 
 import jakarta.inject.Inject;
 import java.net.SocketAddress;
@@ -36,6 +38,10 @@ public class Jt1078ProtocolDecoder extends BaseProtocolDecoder {
     private CompositeByteBuf frameBuffer;
     private int frameDataType;
     private long frameTimestamp;
+    private int framePayloadType;
+
+    private long streamDeviceId;
+    private int streamChannel;
 
     public Jt1078ProtocolDecoder(Protocol protocol) {
         super(protocol);
@@ -59,11 +65,12 @@ public class Jt1078ProtocolDecoder extends BaseProtocolDecoder {
 
         buf.readUnsignedInt(); // header
         buf.readUnsignedByte(); // V/P/X/CC
-        buf.readUnsignedByte(); // M/PT
+        int payloadType = buf.readUnsignedByte() & 0x7F; // M/PT
         buf.readUnsignedShort(); // index
 
-        String uniqueId = HuabaoProtocolDecoder.decodeId(buf.readSlice(6));
-        int logicalChannel = buf.readUnsignedByte();
+        int idLength = buf.getUnsignedShort(buf.readerIndex()) == 0 ? 10 : 6;
+        String uniqueId = Jt808ProtocolDecoder.decodeId(buf.readSlice(idLength));
+        int videoChannel = buf.readUnsignedByte();
         int rawType = buf.readUnsignedByte();
         int dataType = BitUtil.from(rawType, 4);
         int subpackageType = BitUtil.to(rawType, 4);
@@ -79,19 +86,21 @@ public class Jt1078ProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        if (deviceLookupService.lookup(new String[]{uniqueId}) == null) {
+        Device device = deviceLookupService.lookup(new String[]{uniqueId});
+        if (device == null) {
             return null;
         }
+
+        streamDeviceId = device.getId();
+        streamChannel = videoChannel;
 
         ByteBuf body = buf.readRetainedSlice(bodyLength);
 
         if (subpackageType == 0) {
-            // atomic packet - complete frame
             boolean isKeyFrame = dataType == 0;
-            streamManager.handleFrame(uniqueId, logicalChannel, body, timestamp, isKeyFrame);
+            streamManager.handleFrame(streamDeviceId, videoChannel, body, timestamp, isKeyFrame, payloadType);
             body.release();
         } else if (subpackageType == 1) {
-            // first subpackage
             if (frameBuffer != null) {
                 frameBuffer.release();
             }
@@ -99,27 +108,41 @@ public class Jt1078ProtocolDecoder extends BaseProtocolDecoder {
             frameBuffer.addComponent(true, body);
             frameDataType = dataType;
             frameTimestamp = timestamp;
+            framePayloadType = payloadType;
         } else if (subpackageType == 3) {
-            // middle subpackage
             if (frameBuffer != null) {
                 frameBuffer.addComponent(true, body);
             } else {
                 body.release();
             }
         } else if (subpackageType == 2) {
-            // last subpackage
             if (frameBuffer != null) {
                 frameBuffer.addComponent(true, body);
                 boolean isKeyFrame = frameDataType == 0;
-                streamManager.handleFrame(uniqueId, logicalChannel, frameBuffer, frameTimestamp, isKeyFrame);
+                streamManager.handleFrame(
+                        streamDeviceId, videoChannel, frameBuffer, frameTimestamp, isKeyFrame, framePayloadType);
                 frameBuffer.release();
                 frameBuffer = null;
             } else {
                 body.release();
             }
+        } else {
+            body.release();
         }
 
         return null;
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        super.channelInactive(ctx);
+        if (streamDeviceId > 0) {
+            streamManager.removeStream(streamDeviceId, streamChannel);
+        }
+        if (frameBuffer != null) {
+            frameBuffer.release();
+            frameBuffer = null;
+        }
     }
 
 }
