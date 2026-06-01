@@ -44,11 +44,9 @@ public class HuabaoProtocolEncoder extends BaseProtocolEncoder {
         boolean alternative = AttributeUtil.lookup(
                 getCacheManager(), Keys.PROTOCOL_ALTERNATIVE.withPrefix(getProtocolName()), command.getDeviceId());
 
-        ByteBuf id = Unpooled.wrappedBuffer(
-                DataConverter.parseHex(getUniqueId(command.getDeviceId())));
+        ByteBuf id = HuabaoProtocolDecoder.encodeId(getUniqueId(command.getDeviceId()));
         try {
             ByteBuf data = Unpooled.buffer();
-            byte[] time = DataConverter.parseHex(new SimpleDateFormat("yyMMddHHmmss").format(new Date()));
 
             switch (command.getType()) {
                 case Command.TYPE_CUSTOM:
@@ -98,7 +96,8 @@ public class HuabaoProtocolEncoder extends BaseProtocolEncoder {
                 case Command.TYPE_ENGINE_RESUME:
                     if (alternative) {
                         data.writeByte(command.getType().equals(Command.TYPE_ENGINE_STOP) ? 0x01 : 0x00);
-                        data.writeBytes(time);
+                        data.writeBytes(DataConverter.parseHex(
+                                new SimpleDateFormat("yyMMddHHmmss").format(new Date())));
                         return HuabaoProtocolDecoder.formatMessage(
                                 0x7e, HuabaoProtocolDecoder.MSG_OIL_CONTROL, id, false, data);
                     } else {
@@ -116,7 +115,7 @@ public class HuabaoProtocolEncoder extends BaseProtocolEncoder {
                     String host = URI.create(config.getString(Keys.WEB_URL)).getHost();
                     int port = config.getInteger(
                             Keys.PROTOCOL_PORT.withPrefix(BaseProtocol.nameFromClass(Jt1078Protocol.class)));
-                    int channel = command.getInteger(Command.KEY_INDEX);
+                    int channel = command.getInteger(Command.KEY_INDEX, 1);
                     data.writeByte(host.length());
                     data.writeCharSequence(host, StandardCharsets.US_ASCII);
                     data.writeShort(port); // tcp port
@@ -127,7 +126,7 @@ public class HuabaoProtocolEncoder extends BaseProtocolEncoder {
                     return HuabaoProtocolDecoder.formatMessage(
                             0x7e, HuabaoProtocolDecoder.MSG_VIDEO_REQUEST, id, false, data);
                 case Command.TYPE_VIDEO_STOP:
-                    data.writeByte(command.getInteger(Command.KEY_INDEX)); // channel
+                    data.writeByte(command.getInteger(Command.KEY_INDEX, 1));
                     data.writeByte(0); // close audio/video transmission
                     data.writeByte(0); // close both audio and video
                     data.writeByte(0); // main stream
