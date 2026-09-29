@@ -21,6 +21,7 @@ import org.traccar.api.security.OidcSessionManager.AuthorizationCode;
 import org.traccar.api.signature.TokenManager;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
+import org.traccar.helper.WebHelper;
 import org.traccar.model.User;
 import org.traccar.storage.StorageException;
 import com.nimbusds.jose.JOSEException;
@@ -36,11 +37,14 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
@@ -67,6 +71,10 @@ public class OidcResource extends BaseResource {
     @Inject
     private OidcSessionManager sessionManager;
 
+    @Context
+    private UriInfo uriInfo;
+
+    @PermitAll
     @GET
     @Path("authorize")
     public Response authorize(
@@ -87,6 +95,13 @@ public class OidcResource extends BaseResource {
         URI target = URI.create(redirectUri);
         if (!client.redirectUris().contains(target)) {
             throw new WebApplicationException(Response.Status.BAD_REQUEST);
+        }
+
+        if (getUserId() == 0) {
+            // not logged in: the web login page returns here once the session exists
+            String returnPath = "/api/oidc/authorize?" + uriInfo.getRequestUri().getRawQuery();
+            return Response.seeOther(URI.create(WebHelper.retrieveWebUrl(config)
+                    + "/?return=" + URLEncoder.encode(returnPath, StandardCharsets.UTF_8))).build();
         }
 
         String code = sessionManager.issueCode(
